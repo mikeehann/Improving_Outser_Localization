@@ -1,61 +1,50 @@
-import os
-import matplotlib.pyplot as plt
+
+from filterpy.kalman import ExtendedKalmanFilter
+from filterpy.common import Q_discrete_white_noise
 import numpy as np
 
-#Time,GPS_Long,GPS_Lat,GPS_Alt,SDn,SDe,SDu,GPS_Status,IMU_AngVelX,IMU_AngVelY,IMU_AngVelZ,IMU_LinearAccX,IMU_LinearAccY,IMU_LinearAccZ
 
-dir = os.getcwd()
-print(f'\n\ndirectory: {dir}\n\n')
+'''
+Instantiate an Extended Kalman Filter with 
+3 state properties (x=3)
+    -GNSS x3   (lat, lon, alt)
+    
+6 measurement properties (z=1)
+    -IMU  x6   (linear acceleration x3)
+                (angular velocity x3)
 
-infile = 'C2_IMU.txt'
+0 noise properties (u=0)
+'''
+kf = ExtendedKalmanFilter(dim_x=3, dim_z=6, dim_u=0)
 
-time, lon, lat, alt, gnss_sd, status, imu_ang_vel, imu_lin_acc = [], [], [], [], [], [], [], []
+# Initial state (location and velocity)
+kf.x = np.array([   [2.],
+                    [0.],
+                    [0.]
+])
 
+kf.F = np.array([   [1., 1.],
+                    [0., 1.],
+                    [0.]
+])
 
-def in_data():
-    with open(infile, 'r') as f:
-        f.readline()
-        for line in f:
-            t, lo, la, al, sd_n, sd_e, sd_u, stat, ia_velx, ia_vely, ia_velz, il_accx, il_accy, il_accz  = line.replace(' ', '').strip().split(',')
-            if lo != 'None':
-                time.append(t)
-                status.append(stat)
-                lon.append(float(lo))
-                lat.append(float(la))
-                alt.append(float(al))
-                #gnss_sd.append([sd_n], [sd_e], [sd_u])
-                #imu_ang_vel.append((ia_velx, ia_vely, ia_velz))
-                #imu_lin_acc.append((il_accx, il_accy, il_accz))
-    plt.plot(lat, lon)
-    print(np.mean(lon))
-    return
+# Measurement array (unchanging)
+kf.H = np.array([[1., 0.]]) 
 
+# Covariance matrix
+kf.P *= 1000. 
 
-def kf():
-    return
+# Uncertainty of state
+kf.R = 5
 
-def main():
-    in_data()
-    kf()
+# Uncertainty of process
+kf.Q = Q_discrete_white_noise(2, dt, .1)
 
+# Run the filter
+while True:
+    kf.predict()
+    kf.update(get_measurement())
 
-main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    x = kf.x
+    values.append(x)
+    plotting_function(x)
