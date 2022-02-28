@@ -1,11 +1,16 @@
-
+# Import EKF libraries
 from filterpy.kalman import ExtendedKalmanFilter
-from filterpy.common import Q_discrete_white_noise
-import sympy as sp
-import numpy as np
+
+# Import Matrix libraries
+import sympy
+from sympy.abc import alpha, x, y, v, w, R, theta
+from sympy import symbols, Matrix
+
+# Import left-over required functions
+from numpy import array, sqrt
 
 '''
-Instantiate an Extended Kalman Filter with 
+Instantiate an Extended Kalman Filter class with 
 3 state properties (x=3)
     -GNSS x3   (lat, lon, alt)
     
@@ -16,48 +21,71 @@ Instantiate an Extended Kalman Filter with
 2 input properties (u=2)
     -Velocity
 '''
+
 class EKF(ExtendedKalmanFilter):
     def __init__(self, dt, ):
+        # Initizlize the class
         ExtendedKalmanFilter.__init__(self, 0.01, )
-        self.dt = dt
-        self.x
 
+        # Define self characteristics
+        self.dt = dt
+
+        # Instantiate symbology
         a, x, y, v, w, theta, time = symbols(
             'a, x, y, v, w, theta, t')
+        d = d*time
+        beta = (d/w)*sympy.tan(a)
+        r = w/sympy.tan(a)
+
+        # Define the F matrix
+        self.fxu = Matrix(
+            [
+
+            ])
+
+        # Compute the jacobian forms of the F matrix
+        self.F_j = self.fxu.jacobian(Matrix([Matrix[qwe, qwe, qwe]]))
+        self.V_j = self.fxu.jacobian(Matrix([v, a]))
+
+        # Save for later use
+        self.subs = {   x:0,
+                        y:0,
+                        v:0,
+                        a:0,
+                        time:dt,
+                        w:'wheelbase',
+                        theta:0}
+        self.x_x, self.x_y = x, y
+        self.v, self.a, self.theta = v, a, theta
+
+    def predict(self, u):
+        self.x = self.update(self.x, u, self.dt)
+        self.subs[self.theta] = self.x[2,0]
+
+
+    def update(self, x, u, dt):
 
 kf = EKF(dim_x=3, dim_z=6, dim_u=0)
 
 # Initial state (location and velocity)
-kf.x = np.array([   [2.],
+kf.x = array([   [2.],
                     [0.],
                     [0.]
 ])
 
-kf.F = np.array([   [1., 1.],
+kf.F = array([   [1., 1.],
                     [0., 1.],
                     [0.]
 ])
 
 # Measurement array (unchanging)
-kf.H = np.array([[1., 0.]]) 
+kf.H = array([[1., 0.]]) 
 
 # Covariance matrix
 kf.P *= 1000. 
 
 # Uncertainty of state
 kf.R = 5
-
-# Uncertainty of process
-kf.Q = Q_discrete_white_noise(2, dt, .1)
-
-# Run the filter
-while True:
-    kf.predict()
-    kf.update(get_measurement())
-
-    x = kf.x
-    values.append(x)
-    plotting_function(x)
 
 
 def getVel(x1, y1, z1, x2, y2, z2, dt):
