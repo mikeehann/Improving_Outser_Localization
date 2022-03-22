@@ -21,7 +21,7 @@ def setup(infile):
     # Set and Get directory
     chdir(r'C:\Users\mikeh\OneDrive\Documents\GitHub\ouster_localization')
     dir = getcwd()
-    print(f'\n\ndirectory: {dir}\n\n')
+    print(f'\ndirectory: {dir}\n\n')
 
     print('\treading file...\n')
     # Import the comma delimited .txt file as a pandas dataframe
@@ -32,8 +32,8 @@ def setup(infile):
     df['Time'] = df['Time'].str.extract('(\d+)').astype('float')
 
     # Convert Time into seconds from onset
-    t0 = df.Time[0]
-    df.Time = (df.Time-t0)/10**9
+    t0 = df['Time'][0]
+    df['Time'] = (df['Time']-t0)/10**9
 
     # Set any future interpolated GNSS values to status 99
     # Set any future interpolated standard deviations as to value of previous GNSS
@@ -53,6 +53,7 @@ def setup(infile):
 def main():
 
     t1 = perf_counter()
+    print('\n' + '#'*80 + '\n')
 
     # Set the input file (full or small)
     #infile = r'data\C2_IMU.txt'
@@ -61,19 +62,20 @@ def main():
     df = setup(infile)
 
     t2 = perf_counter()
-    print(f'\t| Setup time: {t2-t1}\n')
+    print(f'\n\n\t| Setup time: {t2-t1}\n')
 
 ##########################################################################
 
     # Convert geodetic coordinates into geocentric (lat/lon to m)
     t1 = perf_counter()
+    print('#'*80 + '\n')
 
     for i in range(len(df.GPS_Long)): # Change to be a generalized column
         df.GPS_Long[i], df.GPS_Lat[i], df.GPS_Alt[i] = geodetic_to_geocentric(df.GPS_Long[i], df.GPS_Lat[i], df.GPS_Alt[i])
         ## SETTING WITH COPY WARNING ##
 
     t2 = perf_counter()
-    print(f'\t| Convert coordinates time: {t2-t1}\n')
+    print(f'\n\n\t| Convert coordinates time: {t2-t1}\n')
 
 ##########################################################################
 
@@ -84,20 +86,19 @@ def main():
 
     # Add time-step velocities/accelerations/headings
     t1 = perf_counter()
+    print('#'*80 + '\n')
 
     df['dt'] = df.Time.diff()
-    df['VelX'] = df.GPS_Long.diff()
-    df['VelY'] = df.GPS_Lat.diff()
-    df['heading'] = ()
-    # MUST DIVIDE ALL VELX AND VELY VARIABLES BY RESPECTIVE DT
-    # LAMBDA FUNCTION?
-    # ADD HEADINGS
+    df['VelX'] = df.GPS_Long.diff() / df.dt
+    df['VelY'] = df.GPS_Lat.diff() / df.dt
+    df['VelZ'] = df.GPS_Alt.diff() / df.dt
+    #df['def_heading'] = ()
 
     df = df.replace(' None', 0)
     #df = df.astype('float')
 
     t2 = perf_counter()
-    print(F'\t| Additions data added (vel/acc/headings): {t2-t1}\n')
+    print(F'\n\n\t| Additions data added (vel/acc/headings): {t2-t1}\n')
 
     # Trim first 2 values in df (holds null vels/accs)
     df = df.drop(index=0)
@@ -111,15 +112,15 @@ def main():
 
     # Plotted data assumes no null values
     t1 = perf_counter()
+    print('#'*80 + '\n')
 
     print(df.info())
-    print(df.VelX.head())
 
     plot_vel(df)
-    plot_track(df)
+    #plot_track(df)
 
     t2 = perf_counter()
-    print(f'| Plot time: {t2-t1}\n')
+    print(f'\n\n\t| Plot time: {t2-t1}\n')
 
 
 #if __name__ == __main__:
