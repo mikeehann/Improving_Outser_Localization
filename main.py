@@ -1,6 +1,8 @@
 
+from numpy import float64
 from functions import geodetic_to_geocentric
 from plot import plot_vel, plot_track
+import matplotlib.pyplot as plt
 
 from os import chdir, getcwd
 from time import perf_counter
@@ -39,13 +41,11 @@ def setup(infile):
     # Set any future interpolated standard deviations as to value of previous GNSS
     df['GPS_Status'] = df['GPS_Status'].replace(' None', '99')
     df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].replace(' None', pd.NA)
-    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].astype('string').interpolate(method='ffill').astype(float)
+    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].astype('string').interpolate(method='ffill').astype('float')
 
     # Set all values GNSS and IMU 'None' values to null, convert all object data types to presumed data types
     df = df.replace(' None', pd.NA).convert_dtypes(infer_objects=True)
     df.loc[:, 'GPS_Long':'GPS_Alt'] = df.loc[:, 'GPS_Long':'GPS_Alt'].astype('float')
-
-    print(df.info())
 
     return df
 
@@ -59,20 +59,27 @@ def main():
     #infile = r'data\C2_IMU.txt'
     #infile = r'data\less_data.txt'
     infile = r'data\GNSS.txt'
+
+    # File headings:
+    # Time, GNSS_Long, GNSS_Lat, GNSS_Alt, ... x6
+
     df = setup(infile)
+    print(df.info())
 
     t2 = perf_counter()
     print(f'\n\n\t| Setup time: {t2-t1}\n')
 
 ##########################################################################
 
+    # Eventually convert this to a dataframe map
+
     # Convert geodetic coordinates into geocentric (lat/lon to m)
     t1 = perf_counter()
     print('#'*80 + '\n')
 
-    for i in range(len(df.GPS_Long)): # Change to be a generalized column
-        df.GPS_Long[i], df.GPS_Lat[i], df.GPS_Alt[i] = geodetic_to_geocentric(df.GPS_Long[i], df.GPS_Lat[i], df.GPS_Alt[i])
-        ## SETTING WITH COPY WARNING ##
+    # Loop through every entry in the dataframe, converting each GNSS coord to geocentric metres
+    for i in range(len(df.GPS_Long)):
+        df.loc[i, 'GPS_Long':'GPS_Lat'] = geodetic_to_geocentric(df.loc[i, 'GPS_Long':'GPS_Alt'])
 
     t2 = perf_counter()
     print(f'\n\n\t| Convert coordinates time: {t2-t1}\n')
@@ -92,6 +99,7 @@ def main():
     df['VelX'] = df.GPS_Long.diff() / df.dt
     df['VelY'] = df.GPS_Lat.diff() / df.dt
     df['VelZ'] = df.GPS_Alt.diff() / df.dt
+
     #df['def_heading'] = ()
 
     df = df.replace(' None', 0)
@@ -110,11 +118,24 @@ def main():
 
 ##########################################################################
 
+    '''
+    set initial heading to be at index 0. 
+    
+    Start rotating frame of reference by this value
+    '''
+
+##########################################################################
+
+    '''
+    if GNSS SDn/u/e is too high, move the GNSS towards an IMU derived track that
+    is proportional to the GNSS error value
+    '''
+
+##########################################################################
+
     # Plotted data assumes no null values
     t1 = perf_counter()
     print('#'*80 + '\n')
-
-    print(df.info())
 
     plot_vel(df)
     #plot_track(df)
@@ -125,13 +146,5 @@ def main():
 
 #if __name__ == __main__:
 main()
-
-
-
-
-
-
-
-
 
 

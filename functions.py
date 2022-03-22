@@ -11,11 +11,15 @@ from scipy.spatial.transform import Rotation
 #grs80 = (6378137, 298.257222100882711)
 wgs84 = (6378137, 298.257223563)
 
-def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
+def geodetic_to_geocentric(coord_array, ellps=wgs84):
 
     # Compute the Geocentric (Cartesian) Coordinates X, Y, Z
     # given the Geodetic Coordinates lat, lon + Ellipsoid Height h
     
+    lat = coord_array[0]
+    lon = coord_array[1]
+    h   = coord_array[2]
+
     a, rf = ellps
     lat_rad = np.radians(lat)
     lon_rad = np.radians(lon)
@@ -24,7 +28,7 @@ def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
     Y = (N + h) * np.cos(lat_rad) * np.sin(lon_rad)
     Z = ((1 - 1 / rf) ** 2 * N + h) * np.sin(lat_rad)
 
-    return X, Y, Z
+    return [X, Y]
 
 
 def euler_to_quat(euler):
