@@ -1,7 +1,8 @@
 
+from time import perf_counter
 import numpy as np
 import pandas as pd
-from time import perf_counter
+#from time import perf_counter
 from scipy.spatial.transform import Rotation
 
 
@@ -15,7 +16,6 @@ def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
 
     # Sampled from YeO 
     # (https://codereview.stackexchange.com/questions/195933/convert-geodetic-coordinates-to-geocentric-cartesian)
-
 
     # Compute the Geocentric (Cartesian) Coordinates X, Y, Z
     # given the Geodetic Coordinates lat, lon + Ellipsoid Height h
@@ -35,6 +35,28 @@ def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
 
     # Only return the latitude and longitude
     return [X, Y]
+
+
+# Add Instantaneous Pitch, Roll, Yaw using IMU values
+
+def get_PRY(df): 
+    
+    t1 = perf_counter()
+    print(f'\n\t Calculating PRY...\n')
+
+    RAD_TO_DEG = 180 * np.pi
+
+    df['Pitch'] = df.IMU_AngVelX * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02
+    df['Roll'] = df.IMU_AngVelY * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccX) * RAD_TO_DEG) * 0.02
+    df['Yaw'] = df.IMU_AngVelZ * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccX, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02
+
+    ''' This is faster, but more complicated to implement, maybe later...
+    df['PRY'] = tuple(zip(df.IMU_AngVelX * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02, \
+                          df.IMU_AngVelY * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccX) * RAD_TO_DEG) * 0.02, \
+                          df.IMU_AngVelZ * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccX, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02))
+    '''
+
+    print(f'\n\t | Finished PRY calculations: time {perf_counter()-t1}')
 
 
 # Convert Euler Angles to Quaternions using scipy
@@ -67,7 +89,7 @@ def del_interpol(df):
 
     t1 = perf_counter()
 
-    print('\tdeleting bad values...\n')
+    print('\n\tdeleting bad values...\n')
 
     # Copy the dataframe and maniuplate the copy (don't mess up the original data)
     new_df = df.copy(deep=True)
@@ -77,7 +99,10 @@ def del_interpol(df):
 
     # Loop through the dataframe, if standard  
     # deviations are too high set that row to null
-    '''
+    ''' 
+    this would be used to speed the for loop up if required (~28s on my comp vs ~0.7s) 
+    wont implement if not desired
+
     def high_err(sd):
         pass
     '''
@@ -104,6 +129,6 @@ def del_interpol(df):
 
     #End performance counter
     t2 = perf_counter()
-    print(f'\n\n\t| deletion and interpolation time: {t2-t1}\n')
+    print(f'\n\n\t| deletion and interpolation done, time: {t2-t1}\n')
 
     return new_df

@@ -1,18 +1,20 @@
 
-from numpy import sqrt
-from functions import geodetic_to_geocentric, del_interpol, write_to_csv
-from plot import plot_vel, plot_track
-import matplotlib.pyplot as plt
+from functions import geodetic_to_geocentric, write_to_csv, get_PRY
+from plot import plot_vel, plot_track, plot_PRY
+#from ux import ui
 
 from os import chdir, getcwd
 from time import perf_counter
+#from datetime import datetime
 
 import pandas as pd
-
+from numpy import sqrt
 
 '''
 TO DO
-1. make everything a tuple?
+1. make sure the geodetic to geocentric conversion is accurate...
+2. convert time to datetime dtype
+3. make everything a tuple?
 '''
 
 # INGEST FILE
@@ -32,17 +34,17 @@ def setup(infile):
     # Extract only the numbers from the 'Time' column using a reg ex, convert to long integer
     df['Time'] = df['Time'].str.extract('(\d+)').astype('float')
 
+    #df.Time = df.Time.map(lambda x: datetime.fromtimestamp(x))
+
     # Convert Time into seconds from onset
     t0 = df['Time'][0]
     df['Time'] = (df['Time']-t0)/10**9
 
-    # Set any future interpolated standard deviations as to value of previous GNSS
-    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].replace(' None', pd.NA)
-    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].astype('string').interpolate(method='ffill').astype('float')
+    # Forcing proper data types for each column
+    df = df.apply(lambda x: pd.to_numeric(x, errors='coerce'))
 
-    # Set all values GNSS and IMU 'None' values to null, convert all object data types to presumed data types
-    df = df.replace(' None', pd.NA).convert_dtypes(infer_objects=True)
-    df.loc[:, 'GPS_Long':'GPS_Alt'] = df.loc[:, 'GPS_Long':'GPS_Alt'].astype('float')
+    # Forward fill standard deviations, so they are not linearly interpolated later
+    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].interpolate(method='ffill')
 
     return df
 
@@ -53,15 +55,13 @@ def main():
     print('\n' + '#'*80 + '\n')
 
     # Set the input file (full, small, or just GNSS)
-    infile = r'data\C2_IMU.txt'
+    #infile = r'data\C2_IMU.txt'
     #infile = r'data\less_data.txt'
-    #infile = r'data\GNSS.txt'
+    infile = r'data\GNSS.txt'
 
     df = setup(infile)
-    print(df.info())
 
-    t2 = perf_counter()
-    print(f'\n\n\t| Setup done, time: {t2-t1}\n')
+    print(f'\n\n\t| Setup done, time: {perf_counter()-t1}\n')
 
 ##########################################################################
 
@@ -74,8 +74,7 @@ def main():
 
     df.loc[:, 'GPS_Long':'GPS_Lat'] = [geodetic_to_geocentric(*a) for a in tuple(zip(df['GPS_Long'], df['GPS_Lat'], df['GPS_Alt']))]
 
-    t2 = perf_counter()
-    print(f'\n\n\t| Convert coordinates done, time: {t2-t1}\n')
+    print(f'\n\n\t| Convert coordinates done, time: {perf_counter()-t1}\n')
 
 ##########################################################################
 
@@ -90,8 +89,7 @@ def main():
     df['VelZ'] = df.GPS_Alt.diff() / df.dt
     df['Abs_Vel'] = sqrt(df.VelX**2 + df.VelY**2 + df.VelZ**2)
 
-    t2 = perf_counter()
-    print(F'\n\n\t| Velocities added, time: {t2-t1}\n')
+    print(F'\n\n\t| Velocities added, time: {perf_counter()-t1}\n')
 
     # Trim first value in df (holds null vels/accs)
     df = df.drop(index=0)
@@ -116,7 +114,8 @@ def main():
     RPY is used in in the body frame,
     ENU is used in the world frame
     '''
-    
+    get_PRY(df)
+
     #df['Heading'] = (df.,    ,   )
 
 ##########################################################################
@@ -138,12 +137,13 @@ def main():
     Interpolate the updated GNSS track. Ideally the Lidar IMU should have corrected
     some of the ugly GNSS points
     '''
-    # df = df.interpolate(linear=True)
+    df = df.interpolate(linear=True)
 
 ##########################################################################
 
     # Use the 'hacky' delete bad values and then interpolate? (not guaranteed to work well)
 
+    from functions import del_interpol
     df = del_interpol(df)
 
 ##########################################################################
@@ -156,9 +156,9 @@ def main():
 
     #plot_vel(df)
     plot_track(df)
+    #plot_PRY(df)
 
-    t2 = perf_counter()
-    print(f'\n\n\t| Plots done, time: {t2-t1}\n')
+    print(f'\n\n\t| Plots done, time: {perf_counter()-t1}\n')
 
 
 #if __name__ == __main__:
