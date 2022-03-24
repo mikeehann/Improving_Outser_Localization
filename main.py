@@ -108,10 +108,16 @@ def main():
     set initial heading to be at index 0. 
     
     Start rotating frame of reference by this value
+
+    Heading is defined as a rotation from true north tangent to the geoid
+    ENU world reference frame
+    tuple is represented as (alpha, beta, gamma) <- Euler/Tait-Bryan Angles (Yaw, Roll, Yaw)
+
+    RPY is used in in the body frame,
+    ENU is used in the world frame
     '''
-    # Heading is defined as a rotational matrix from true north tangent to the geoid
-    # tuple is represented as (alpha, beta, gamma) <- Euler Angles
-    #df['Heading'] = (df.   ,    ,   )
+    
+    #df['Heading'] = (df.,    ,   )
 
 ##########################################################################
 
