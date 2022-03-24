@@ -1,2 +1,2 @@
-__pychache__
-.pynb_checkpoints
+git rm --cached __pychache__
+git rm --cached .ipynb_checkpoints
