@@ -1,28 +1,24 @@
 
 from time import perf_counter
+
 import numpy as np
 import pandas as pd
-#from time import perf_counter
 from scipy.spatial.transform import Rotation
 
 
-# Ellipsoid Parameters as tuples (semi major axis, inverse flattening)
-#grs80 = (6378137, 298.257222100882711)
-wgs84 = (6378137, 298.257223563)
-
-def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
-
-    # Convert GNSS DD to Metres
-
-    # Sampled from YeO 
-    # (https://codereview.stackexchange.com/questions/195933/convert-geodetic-coordinates-to-geocentric-cartesian)
-
-    # Compute the Geocentric (Cartesian) Coordinates X, Y, Z
-    # given the Geodetic Coordinates lat, lon + Ellipsoid Height h
+def geodetic_to_geocentric(lat, lon, h, ellps=(6378137, 298.257223563)):
     '''
-    lat = coord_array[0]
-    lon = coord_array[1]
-    h   = coord_array[2]
+    Convert GNSS Decimal Degrees to Metres
+
+    Sampled from YeO 
+    (https://codereview.stackexchange.com/questions/195933/convert-geodetic-coordinates-to-geocentric-cartesian)
+
+    Compute the Geocentric (Cartesian) Coordinates X, Y, Z
+    given the Geodetic Coordinates lat, lon + Ellipsoid Height h
+    
+    Ellipsoid Parameters as tuples (semi major axis, inverse flattening)
+    grs80 = (6378137, 298.257222100882711)
+    wgs84 = default
     '''
 
     a, rf = ellps
@@ -37,9 +33,33 @@ def geodetic_to_geocentric(lat, lon, h, ellps=wgs84):
     return [X, Y]
 
 
-# Add Instantaneous Pitch, Roll, Yaw using IMU values
+def orient_imu(df):
+    '''
+    Takes in a dataframe with GNSS and IMU values
+    Returns a df with the IMU values oriented to the intertial
+    frame of reference
+    '''
+
+    # Create a normalized IMU vector
+
+    df['A_hat'] = tuple(zip(df.IMU_LinearAccX / np.sqrt(df.IMU_LinearAccX**2 + df.IMU_LinearAccY**2 + df.IMU_LinearAccZ**2),
+                            df.IMU_LinearAccY / np.sqrt(df.IMU_LinearAccX**2 + df.IMU_LinearAccY**2 + df.IMU_LinearAccZ**2),
+                            df.IMU_LinearAccZ / np.sqrt(df.IMU_LinearAccX**2 + df.IMU_LinearAccY**2 + df.IMU_LinearAccZ**2)))
+
+    # Create a normalized GNSS vector as a target to match
+    # Use derived accelerations from positions with gravity vector
+
+    df['G_hat'] = tuple(zip(df.AccX / np.sqrt(df.AccX**2 + df.AccY**2 + (df.AccZ-9.801)**2),
+                            df.AccY / np.sqrt(df.AccX**2 + df.AccY**2 + (df.AccZ-9.801)**2),
+                            (df.AccZ-9.801) / np.sqrt(df.AccX**2 + df.AccY**2 + (df.AccZ-9.801)**2)))
+
 
 def get_PRY(df): 
+    '''
+    Takes in a dataframe with a 6DOF IMU
+    Appends Roll, Pitch, Yaw columns on the dataframe
+    May become obsolete soon...
+    '''
     
     t1 = perf_counter()
     print(f'\n\t Calculating PRY...\n')
@@ -50,44 +70,51 @@ def get_PRY(df):
     df['Roll'] = df.IMU_AngVelY * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccX) * RAD_TO_DEG) * 0.02
     df['Yaw'] = df.IMU_AngVelZ * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccX, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02
 
-    ''' This is faster, but more complicated to implement, maybe later...
-    df['PRY'] = tuple(zip(df.IMU_AngVelX * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02, \
-                          df.IMU_AngVelY * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccZ, df.IMU_LinearAccX) * RAD_TO_DEG) * 0.02, \
-                          df.IMU_AngVelZ * df.dt * 0.98 + (np.arctan2(df.IMU_LinearAccX, df.IMU_LinearAccY) * RAD_TO_DEG) * 0.02))
-    '''
-
     print(f'\n\t | Finished PRY calculations: time {perf_counter()-t1}')
 
 
-# Convert Euler Angles to Quaternions using scipy
-
 def euler_to_quat(euler):
+    '''
+    Convert Euler Angles (Tait-Byran Angles) to Quaternions
+    Uses scipy 
+    '''
+
     rot = Rotation.from_euler('xyz', [euler[0], euler[1], euler[2]], degrees=True)
     return rot.as_quat()
 
 
-# Convert Quaternions to Euler Angles using scipy
-
 def quat_to_euler(quat):
+    '''
+    Convert Quaternions to Euler Angles (Tait-Byran Agnles)
+    Uses scipy 
+    '''
+
     rot = Rotation.from_quat(quat)
     x, y, z = rot.as_euler('xyz', degrees=True)
     return (x, y, z)
 
 
-# Write data frames to csvs
+def write_to_csv(df, title):
+    '''
+    Writes a dataframe to a .csv in the local folder
+    '''
 
-def write_to_csv(df):
-
-    # Write data
-    df.to_csv('new_data.csv')
+    df.to_csv(f'{title}.csv')
 
 
-# Delete GNSS values with too much error, then interpolate 
-# Not necessarily recommended
+def rem_vel_outlier(df):
+    '''
+    The goal of this function is the create a new GNSS path by smoothing velocity outliers
+    and pathing the GNSS points as if there was no velocity outlier
+    '''
+
 
 def del_interpol(df):
-
-    t1 = perf_counter()
+    '''
+    Takes in a df with GNSS data
+    Deletes any GNSS value with too much error (default at over 0.005m)
+    interpolates between the deleted values to 'refill' the track
+    '''
 
     print('\n\tdeleting bad values...\n')
 
@@ -100,7 +127,7 @@ def del_interpol(df):
     # Loop through the dataframe, if standard  
     # deviations are too high set that row to null
     ''' 
-    this would be used to speed the for loop up if required (~28s on my comp vs ~0.7s) 
+    the below function would be used to speed the for loop up if required (~28s on my comp vs ~0.7s) 
     wont implement if not desired
 
     def high_err(sd):
@@ -126,9 +153,5 @@ def del_interpol(df):
 
     # Remove previously deleted values
     new_df = new_df[new_df['GPS_Long'].notna()]
-
-    #End performance counter
-    t2 = perf_counter()
-    print(f'\n\n\t| deletion and interpolation done, time: {t2-t1}\n')
 
     return new_df

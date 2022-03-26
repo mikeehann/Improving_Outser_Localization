@@ -1,16 +1,23 @@
 
-'''
-Here is where a simplistic User Interface will go
-Should the time become available to make one
-'''
-class ui():
-    def __init__(self, cwd):
-
+from tkinter import *
+class page():
+    def __init__(self):
         # Set self.data = current working directory files
         self.data = []
     
     def gui(self):
         pass
 
-    def text(self):
-        pass
+def gui(size, logo=None, title=None):
+
+    # Initialize tkinter widget
+    root = Tk()
+
+    # Create main start up page
+    label = Label(root, text='Testing')
+    label.pack()
+
+    root.mainloop()
+
+gui()
+
