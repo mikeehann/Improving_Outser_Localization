@@ -19,6 +19,7 @@ TO DO
     Steps inside the function
 2. Increase accuracy of the GNSS derived acceleration
     to make the rotational matrix more accurate
+3. Keep working on orient_imu function. See if the rotational matrix will work
 
 1. make sure the geodetic to geocentric conversion is accurate...
 2. create a UI
@@ -26,32 +27,45 @@ TO DO
 3. make everything a tuple?
 '''
 
-def setup(infile, has_imu):
+def setup(infile, has_imu) -> pd.DataFrame:
 
-    # Set and Get directory
-    chdir(r'C:\Users\mikeh\OneDrive\Documents\GitHub\ouster_localization')
-    dir = getcwd()
-    print(f'\ndirectory: {dir}\n\n')
+    def ingest_file(infile) -> pd.DataFrame:
 
-    print('\treading file...\n')
-    # Import the comma delimited .txt file as a pandas dataframe
-    df = pd.read_csv(f'{dir}\\{infile}', delimiter=',')
+        # Set and Get directory
+        chdir(r'C:\Users\mikeh\OneDrive\Documents\GitHub\ouster_localization')
+        dir = getcwd()
+        print(f'\ndirectory: {dir}\n\n')
 
-    print('\tediting data types...\n')
-    # Extract only the numbers from the 'Time' column using a reg ex, convert to long integer
-    df['Time'] = df['Time'].str.extract('(\d+)').astype('float')
+        print('\treading file...\n')
 
-    #gnss_df.Time = gnss_df.Time.map(lambda x: datetime.fromtimestamp(x))
+        # Import the comma delimited .txt file as a pandas dataframe
+        df = pd.read_csv(f'{dir}\\{infile}', delimiter=',')
 
-    # Convert Time into seconds from onset
-    t0 = df['Time'][0]
-    df['Time'] = (df['Time']-t0)/10**9
+        return df
 
-    # Forcing proper data types for each column
-    df = df.apply(lambda x: pd.to_numeric(x, errors='coerce'))
 
-    # Forward fill standard deviations, so they are not linearly interpolated later
-    df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].interpolate(method='ffill')
+    def edit_dtypes(df) -> pd.DataFrame:
+
+        print('\tediting data types...\n')
+        # Extract only the numbers from the 'Time' column using a reg ex, convert to long integer
+        df['Time'] = df['Time'].str.extract('(\d+)').astype('float')
+
+        #gnss_df.Time = gnss_df.Time.map(lambda x: datetime.fromtimestamp(x))
+
+        # Convert Time into seconds from onset
+        t0 = df['Time'][0]
+        df['Time'] = (df['Time']-t0)/10**9
+
+        # Forcing proper data types for each column
+        df = df.apply(lambda x: pd.to_numeric(x, errors='coerce'))
+
+        # Forward fill standard deviations, so they are not linearly interpolated later
+        df.loc[:, 'SDn':'SDu'] = df.loc[:, 'SDn':'SDu'].interpolate(method='ffill')
+
+        return df
+
+    df = ingest_file(infile)
+    df = edit_dtypes(df)
 
     # If the dataframe contains IMU data, split the dataframes into separate components
     if has_imu:
@@ -70,12 +84,10 @@ def main():
     print('\n' + '#'*80 + '\n')
 
     # Set the input file (full, small, or just GNSS)
-    infile = r'data\C2_IMU.txt'
-    #infile = r'data\less_data.txt'
-    #infile = r'data\GNSS.txt'
+    infile = [r'data\C2_IMU.txt', r'data\less_data.txt', r'data\GNSS.txt']
 
     # Make sure to update variabe assignments for different infiles
-    gnss_df, imu_df = setup(infile, True)
+    gnss_df, imu_df = setup(infile[0], True)
 
     print(f'\n\t| Setup done, time: {perf_counter()-t1}\n')
 
@@ -99,31 +111,41 @@ def main():
     t1 = perf_counter()
     print('#'*80 + '\n')
 
-    gnss_df['dt'] = gnss_df.Time.diff()
-    gnss_df['VelX'] = gnss_df.GPS_Long.diff() / gnss_df.dt
-    gnss_df['VelY'] = gnss_df.GPS_Lat.diff() / gnss_df.dt
-    gnss_df['VelZ'] = gnss_df.GPS_Alt.diff() / gnss_df.dt
+    def add_vectors(df) -> pd.DataFrame:
 
-    # Smooth the velocity datasets by running a rolling mean over the series    
-    gnss_df.VelX = gnss_df.VelX.rolling(10).mean()
+        df['dt'] = df.Time.diff()
+        df['VelX'] = df.GPS_Long.diff() / df.dt
+        df['VelY'] = df.GPS_Lat.diff() / df.dt
+        df['VelZ'] = df.GPS_Alt.diff() / df.dt
 
-    gnss_df['AccX'] = gnss_df.VelX.diff() / gnss_df.dt
-    gnss_df['AccY'] = gnss_df.VelY.diff() / gnss_df.dt
-    gnss_df['AccZ'] = gnss_df.VelZ.diff() / gnss_df.dt
+        # Smooth the velocity datasets by running a rolling mean over the series    
+        df.VelX = df.VelX.rolling(10).mean()
 
-    gnss_df['Abs_Vel'] = sqrt(gnss_df.VelX**2 + gnss_df.VelY**2 + gnss_df.VelZ**2)
-    gnss_df['Abs_Acc'] = sqrt(gnss_df.AccX**2 + gnss_df.AccY**2 + gnss_df.AccZ**2)
+        df['AccX'] = df.VelX.diff() / df.dt
+        df['AccY'] = df.VelY.diff() / df.dt
+        df['AccZ'] = df.VelZ.diff() / df.dt
 
-    print(f'\n\t| Velocities added, time: {perf_counter()-t1}\n')
+        df['Abs_Vel'] = sqrt(df.VelX**2 + df.VelY**2 + df.VelZ**2)
+        df['Abs_Acc'] = sqrt(df.AccX**2 + df.AccY**2 + df.AccZ**2)
 
-    # Trim first value in gnss_df (holds null vels/accs)
-    gnss_df = gnss_df.drop(index=0)
+        print(f'\n\t| Vectors added, time: {perf_counter()-t1}\n')
+
+        # Trim first value in gnss_df (holds null vels/accs)
+        df = df.drop(index=0)
+
+        return df
+
+    gnss_df = add_vectors(gnss_df)
 
 ##########################################################################
 
     # Remove values below certain velocities
 
-    gnss_df = gnss_df.drop(gnss_df[(gnss_df.Time < 10) & (gnss_df.Abs_Vel < 1)].index, axis=0)
+    def trim_df_vel(df, time, min_vel) -> pd.DataFrame:
+
+        df = df.drop(df[(df.Time < time) & (df.Abs_Vel < min_vel)].index, axis=0)
+
+    gnss_df = trim_df_vel(gnss_df, 10, 1)
 
 ##########################################################################
 
@@ -132,17 +154,21 @@ def main():
     t1 = perf_counter()
     print('#'*80 + '\n')
 
-    df = gnss_df.append(imu_df)
-    df = df.sort_values(by=['Time'])
+    def merge_dfs(df1, df2) -> pd.DataFrame:
+        
+        df = df1.append(df2)
+        df = df.sort_values(by=['Time'])
 
-    df = df.interpolate(method='linear')
+        df = df.interpolate(method='linear')
 
-    # Remove previously deleted values
-    df = df.dropna()
+        # Remove previously deleted values
+        df = df.dropna()
+
+        return df
+
+    df = merge_dfs(gnss_df, imu_df)
 
     orient_imu(df)
-
-    print(df.head())
 
     print(f'\n\t| Merged and interpolated, time: {perf_counter()-t1}\n')
 
