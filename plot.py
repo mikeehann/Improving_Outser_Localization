@@ -1,6 +1,4 @@
-
 import matplotlib.pyplot as plt
-from functions import write_to_csv
 #import geopandas as gpd
 
 def plot_vel(df):
@@ -46,16 +44,7 @@ def plot_track(df):
     plt.show()
 
 
-def plot_track_from_vel(df):
-
-    # Plot a GNSS track integrated from velocity
-
-    df.VelX = df.VelX * df.dt
-    df.VelY = df.VelY * df.dt
-    #df.VelZ = df.VelZ * df.dt
-
-    write_to_csv(df, 'before')
-
+def plot_track_from_vel(lon, lat, df):
     '''
     The issue currently is the rolling sum is not doing what I thought
     Need to continuously add to the initial GNSS value, not roll sum
@@ -63,20 +52,14 @@ def plot_track_from_vel(df):
     Create a for loop and IF that works, find an optimization
     '''
 
-    df.loc[587, 'VelX'] = df.loc[587, 'GPS_Long']
-    df.loc[587, 'VelY'] = df.loc[587, 'GPS_Lat']
-
-    df.GPS_Long = df.VelX.rolling(2).sum()
-    df.GPS_Lat = df.VelY.rolling(2).sum()
-
-    write_to_csv(df, 'after')
-
     plt.title("Track")
     plt.xlabel("longitude")
     plt.ylabel("latitude")
-    plt.plot(df.GPS_Long, df.GPS_Lat, color='black')
+    #plt.plot(lon, lat, color='black')
+    plt.scatter(lon, lat, c=df.SDn, cmap='copper_r')
     plt.scatter(df.GPS_Long, df.GPS_Lat, c=df.SDn, cmap='copper_r')
     plt.show()
+
 
 def plot_PRY(df):
 
